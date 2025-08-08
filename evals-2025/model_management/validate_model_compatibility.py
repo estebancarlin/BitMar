@@ -107,15 +107,17 @@ def validate_checkpoint_structure(model_path):
     """Validate checkpoint has required files"""
     from pathlib import Path
     
-    # For HuggingFace model names, skip file validation
-    if "/" in model_path and not Path(model_path).exists():
-        print(f"Assuming HuggingFace model: {model_path}")
+    # For HuggingFace model names (contains / or doesn't exist as path), skip file validation
+    if "/" in model_path or not Path(model_path).exists():
+        print(f"HuggingFace model detected: {model_path}")
+        print("✓ Skipping local file validation for HuggingFace model")
         return True
     
+    # For local paths, validate structure
     model_path = Path(model_path)
     required_files = ["config.json"]
     
-    print(f"Validating checkpoint structure: {model_path}")
+    print(f"Validating local checkpoint structure: {model_path}")
     
     missing_files = []
     for file in required_files:
@@ -153,7 +155,6 @@ def main():
         print("✓ Model is compatible with BabyLM evaluation pipeline")
     else:
         print("✗ Model has compatibility issues")
-        import sys
         sys.exit(1)
 
 if __name__ == "__main__":
