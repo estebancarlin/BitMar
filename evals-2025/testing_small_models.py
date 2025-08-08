@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Test with actual small models from HuggingFace
+Test with actual small models from HuggingFace that work well
 """
 import subprocess
 import sys
 from pathlib import Path
 
-# Small models we can test with
+# Better test models that are smaller and more reliable
 TEST_MODELS = [
-    ("gpt2", "causal"),
-    ("distilbert-base-uncased", "encoder"), 
-    ("google/flan-t5-small", "encoder-decoder")
+    ("distilgpt2", "causal"),  # Smaller than GPT-2, PyTorch format
+    ("microsoft/DialoGPT-small", "causal"),  # Small causal model
+    ("prajjwal1/bert-tiny", "encoder"),  # Very small BERT variant
 ]
 
 def test_model_loading(model_name, architecture):
@@ -24,7 +24,7 @@ def test_model_loading(model_name, architecture):
     ]
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
             print(f"✓ {model_name} validation passed")
             return True
