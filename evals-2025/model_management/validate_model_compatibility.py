@@ -6,6 +6,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification
 import argparse
 import traceback
+import sys
 
 def test_model_loading(model_path, architecture="causal"):
     """Test if model can be loaded with transformers"""
