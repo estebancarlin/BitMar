@@ -26,21 +26,44 @@ class BitMarWandbLogger:
         self.step = 0
         self.config = config or {}
         
-        # Initialize wandb with step metric
-        wandb.init(
-            project=self.project_name,
-            config=self.config,
-            name=run_name or f"bitmar_{wandb.util.generate_id()}",
-            entity=entity
-        )
+        # Initialize wandb with step metric and safer settings
+        try:
+            wandb.init(
+                project=self.project_name,
+                config=self.config,
+                name=run_name or f"bitmar_{wandb.util.generate_id()}",
+                entity=entity,
+                settings=wandb.Settings(
+                    _disable_stats=True,  # Disable automatic system stats
+                    _disable_meta=True,   # Disable metadata collection that might cause issues
+                )
+            )
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to initialize wandb with advanced settings: {e}")
+            # Fallback to basic initialization
+            wandb.init(
+                project=self.project_name,
+                config=self.config,
+                name=run_name or f"bitmar_{wandb.util.generate_id()}",
+                entity=entity
+            )
         
         # Define step metric to ensure proper ordering
         wandb.define_metric("step")
         wandb.define_metric("*", step_metric="step")
         
-        # Set up plotting style
-        plt.style.use('seaborn-v0_8')
-        sns.set_palette("husl")
+        # Set up plotting style with error handling
+        try:
+            plt.style.use('seaborn-v0_8')
+            sns.set_palette("husl")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to set up plotting style: {e}")
+            try:
+                # Fallback to basic style
+                plt.style.use('default')
+            except Exception as e2:
+                logger.warning(f"⚠️  Failed to set even default plotting style: {e2}")
+                # Continue without style setup
         
     def log_consolidated_metrics(self, outputs: Dict[str, torch.Tensor], epoch: int, step: int, 
                                 lr: float, model: nn.Module, memory_module=None, 
@@ -225,9 +248,26 @@ class BitMarWandbLogger:
         metrics['Training/Step'] = step
         metrics['step'] = step
         
-        # Log everything at once
-        wandb.log(metrics, step=step)
-        self.step = step
+        # Log everything at once with error handling
+        try:
+            wandb.log(metrics, step=step)
+            self.step = step
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to log consolidated metrics with step: {e}")
+            try:
+                # Fallback: log without step
+                wandb.log(metrics)
+                self.step = step
+            except Exception as e2:
+                logger.error(f"❌ Failed to log consolidated metrics even without step: {e2}")
+                # Try to log basic metrics only
+                try:
+                    basic_metrics = {'Training/Loss': metrics.get('Training/Loss', 0), 'step': step}
+                    wandb.log(basic_metrics, step=step)
+                    self.step = step
+                    logger.info("✅ Logged basic metrics successfully (fallback)")
+                except Exception as e3:
+                    logger.error(f"❌ Failed to log even basic metrics: {e3}")
         
     def log_quantization_metrics(self, model: nn.Module, step: int):
         """Log BitNet quantization statistics with proper categorization"""
@@ -262,12 +302,22 @@ class BitMarWandbLogger:
                     # Sparsity (zeros percentage)
                     metrics[f'Quantization/Sparsity_{module_name}'] = zeros * 100
         
-        # Add step for consistency
+        # Add step for consistency and log with error handling
         if step > self.step:
             metrics['step'] = step
-            wandb.log(metrics, step=step)
+            try:
+                wandb.log(metrics, step=step)
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to log quantization metrics with step: {e}")
+                try:
+                    wandb.log(metrics)
+                except Exception as e2:
+                    logger.error(f"❌ Failed to log quantization metrics: {e2}")
         else:
-            wandb.log(metrics)
+            try:
+                wandb.log(metrics)
+            except Exception as e:
+                logger.error(f"❌ Failed to log quantization metrics: {e}")
         
     def log_memory_analysis(self, memory_module, step: int):
         """Log detailed episodic memory analysis"""
@@ -308,19 +358,37 @@ class BitMarWandbLogger:
                         metrics['Memory/Analysis_Max_Similarity'] = similarities.max().item()
                         metrics['Memory/Analysis_Similarity_Std'] = similarities.std().item()
         
-        # Add step for consistency
+        # Add step for consistency and log with error handling
         if step > self.step:
             metrics['step'] = step
-            wandb.log(metrics, step=step)
+            try:
+                wandb.log(metrics, step=step)
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to log memory analysis with step: {e}")
+                try:
+                    wandb.log(metrics)
+                except Exception as e2:
+                    logger.error(f"❌ Failed to log memory analysis: {e2}")
         else:
-            wandb.log(metrics)
+            try:
+                wandb.log(metrics)
+            except Exception as e:
+                logger.error(f"❌ Failed to log memory analysis: {e}")
         
     def log_learning_rate(self, lr: float, step: int):
         """Log learning rate with proper categorization"""
-        if step > self.step:
-            wandb.log({'Training/Learning_Rate': lr, 'step': step}, step=step)
-        else:
-            wandb.log({'Training/Learning_Rate': lr})
+        try:
+            if step > self.step:
+                wandb.log({'Training/Learning_Rate': lr, 'step': step}, step=step)
+            else:
+                wandb.log({'Training/Learning_Rate': lr})
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to log learning rate: {e}")
+            try:
+                # Fallback without step
+                wandb.log({'Training/Learning_Rate': lr})
+            except Exception as e2:
+                logger.error(f"❌ Failed to log learning rate even without step: {e2}")
         
     def log_gradient_metrics(self, model: nn.Module, step: int):
         """Log gradient statistics with proper categorization"""

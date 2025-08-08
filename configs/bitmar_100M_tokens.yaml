@@ -65,7 +65,7 @@ vision_feature_reduction:
 
 data:
   # Dataset configuration (100M Token Constrained)
-  dataset_dir: "../babylm_dataset"
+  dataset_dir: "/workspace/babylm_dataset" # Updated for Linux/Docker environment
   text_encoder_name: "gpt2"
   max_seq_length: 256 # Balanced sequence length
 
@@ -174,8 +174,8 @@ wandb:
   plot_memory_evolution_heatmap: true # Memory slot evolution heatmaps
   plot_memory_diversity: true # Track memory diversity and specialization
   plot_memory_access_patterns: true # Visualize memory access patterns
-  memory_visualization_frequency: 500 # Log memory visualizations every 500 steps
-  memory_snapshot_frequency: 100 # Take memory snapshots every 100 steps
+  memory_visualization_frequency: 50000 # Log memory visualizations every 50000 steps
+  memory_snapshot_frequency: 10000 # Take memory snapshots every 10000 steps
 
   # Memory-specific metrics to track
   track_memory_metrics:
@@ -254,3 +254,39 @@ token_tracking:
   log_misaligned_samples: true # Log samples with poor alignment
   alignment_quality_threshold: 0.7 # Threshold for good alignment
   save_alignment_statistics: true # Save alignment statistics
+
+# BabyLM Challenge 2025 Evaluation Integration
+evaluation:
+  enabled: true # Enable evaluation pipeline integration
+  pipeline_2024_path: "/workspace/evaluation-pipeline-2024" # Path to 2024 pipeline (Linux/Docker)
+  pipeline_2025_path: "/workspace/evaluation-pipeline-2025" # Path to 2025 pipeline (Linux/Docker)
+  results_dir: "evaluation_results" # Directory to save evaluation results
+  eval_frequency: 1 # Evaluate every N epochs (1 = every epoch)
+  
+  # Evaluation schedule - which epochs to run which type of evaluation
+  fast_eval_epochs: [1, 2, 3, 4, 5, 6, 7, 8, 9] # Fast evaluation for intermediate checkpoints
+  full_eval_epochs: [10] # Full evaluation for final model
+  
+  # Evaluation components
+  text_evaluation_2025: true # Run text-only evaluations from pipeline 2025
+  finetune_evaluation_2025: true # Run fine-tuning evaluations from pipeline 2025
+  multimodal_evaluation_2024: true # Run multimodal evaluations from pipeline 2024 (VQA + Winoground via lm_eval)
+  multimodal_evaluation_2025: false # 2025 multimodal evaluation is under construction
+  
+  # Data configuration
+  evaluation_data_dir: "evaluation_data/full_eval" # Directory containing evaluation data
+  use_full_eval: true # Use full evaluation dataset by default
+  
+  # Evaluation tasks configuration
+  text_tasks: ["blimp", "ewok", "entity_tracking", "wug_adj", "wug_past", "comps"]
+  finetune_tasks: ["boolq", "mnli", "mrpc", "multirc", "qqp", "rte", "wsc"]
+  multimodal_tasks: ["winoground_filtered", "vqa_filtered"] # Uses HuggingFace datasets directly
+  
+  # Model compatibility settings
+  save_hf_compatible: true # Save models in HuggingFace-compatible format for evaluation
+  use_dummy_model_fallback: true # Use dummy model if conversion fails
+  cleanup_temp_files: true # Clean up temporary files after evaluation
+  
+  # WandB logging integration
+  log_evaluation_to_wandb: true # Log evaluation results to WandB
+  evaluation_log_prefix: "babylm_eval" # Prefix for evaluation logs in WandB

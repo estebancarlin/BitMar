@@ -1,0 +1,388 @@
+# BitMar Configuration for 100M Tokens with SD Card Optimized Episodic Memory
+# Episodic Memory Optimizations:
+# 1. Enhanced capacity: 1024 slots × 1024 dimensions (~4MB episodic memory)
+# 2. Fast fact editing: Optimized for rapid knowledge updates without retraining
+# 3. SD card deployment: Memory size suitable for edge device deployment
+# 4. Stable episodic learning: Reduced interference and improved consolidation
+
+model:
+  # Text encoder configuration (Optimized efficiency)
+  text_encoder_name: "gpt2"
+  text_hidden_size: 128 # Reduced for efficiency
+  text_num_heads: 4 # Increased from 2 for better attention
+  text_num_layers: 4 # Optimal for complexity-efficiency balance
+  text_max_len: 256 # Balanced sequence length
+
+  # Vision encoder configuration (Lightweight but effective)
+  vision_encoder_name: "dinov2_vits14"
+  vision_hidden_size: 64 # Intermediate processing
+  vision_compression_method: "learned_compression" # Best for cross-modal alignment
+  vision_spatial_pooling: true # 14x14 -> 7x7 spatial reduction
+  vision_pool_size: 2 # 2x2 pooling
+
+  # Cross-modal fusion (Enhanced for episodic memory compatibility)
+  fusion_hidden_size: 1024 # Match episode dimension for optimal episodic learning
+  fusion_num_heads: 16 # Increased for enhanced cross-modal attention with larger dimensions
+  fusion_num_layers: 3 # Deeper fusion for better understanding
+
+  # OPTIMIZED EPISODIC MEMORY FOR SD CARD DEPLOYMENT - Enhanced Fast Fact Editing
+  memory_size: 1024 # Optimized for SD card deployment and fast fact editing (1024 slots × 1024 dims = ~4MB)
+  episode_dim: 1024 # Enhanced episodic learning capacity for complex fact representations
+  memory_alpha: 0.08 # Optimized for stable episodic learning with larger memory
+  direct_writing: true
+  memory_compression: true
+  enable_adaptive_training: true
+  
+  # ENHANCED MEMORY PRESERVATION FOR LARGE EPISODIC MEMORY
+  memory_diversity_regularization: 0.005 # Lower for 1024 slots - avoid over-regularization
+  memory_utilization_penalty: 0.002 # Gentle utilization with large memory capacity
+  memory_entropy_weight: 0.003 # Reduced for stable large-scale episodic learning
+  memory_temperature: 1.05 # Lower temperature for more focused episodic access
+  prevent_memory_collapse: true # Critical for large episodic memory stability
+  min_memory_utilization: 0.60 # Realistic target for 1024 slots
+  
+  # EPISODIC LEARNING OPTIMIZATION PARAMETERS
+  episodic_consolidation_rate: 0.02 # Slow consolidation for stable fact storage
+  episodic_interference_threshold: 0.85 # Prevent episodic interference
+  fast_fact_editing_mode: true # Enable optimized fast fact editing capabilities
+  
+  # STABILITY PARAMETERS
+  memory_diversity_smoothing: 0.95 # High smoothing for stable diversity score
+  memory_utilization_smoothing: 0.90 # Smooth utilization tracking
+  memory_update_momentum: 0.85 # Momentum for memory updates
+
+  # Model configuration
+  max_seq_len: 256 # Balanced sequence length
+  dropout: 0.12 # Reduced dropout for better memory retention
+
+# Vision feature configuration (Enhanced)
+vision_feature_reduction:
+  enabled: true
+  method: "learned_compression"
+  target_dim: 64
+  spatial_pooling: true
+  pool_method: "attention"
+  hidden_dim: 128
+  learnable: true
+  preserve_spatial_info: true
+
+data:
+  # Dataset configuration
+  dataset_dir: "/workspace/babylm_dataset"
+  text_encoder_name: "gpt2"
+  max_seq_length: 256
+
+  # Token counting parameters
+  count_tokens: true
+  target_caption_tokens: 50000000
+  target_text_tokens: 50000000
+  token_counting_method: "gpt2"
+
+  # DataLoader settings (Optimized)
+  batch_size: 48 # Reduced for memory stability
+  num_workers: 6
+  shuffle: true
+  pin_memory: true
+  preserve_image_caption_pairs: true
+  strict_alignment_validation: true
+
+# ENHANCED ADAPTIVE TRAINING - Addresses Memory Consolidation
+adaptive_training:
+  enabled: true
+  similarity_window_size: 150 # Faster response to changes (was 100)
+  drop_threshold: 0.06 # Lower threshold for earlier intervention (was 0.08)
+  min_steps_between_interventions: 800 # Longer cooldown for stability (was 500)
+  freeze_duration_steps: 600 # Shorter freeze periods (was 800)
+  loss_rebalance_factor: 2.0 # Moderate rebalancing (was 2.5)
+  similarity_smoothing_alpha: 0.15 # More stable smoothing (was 0.1)
+  
+  # MEMORY-SPECIFIC ADAPTIVE PARAMETERS - GENTLER APPROACH
+  memory_diversity_threshold: 0.25 # Lower threshold (was 0.3)
+  memory_utilization_threshold: 0.55 # Lower threshold (was 0.6)
+  memory_intervention_strength: 1.2 # Gentler intervention (was 1.5)
+  enable_memory_diversity_recovery: true # Enable diversity recovery mechanisms
+
+training:
+  # OPTIMIZED TRAINING CONFIGURATION
+  max_epochs: 10
+  accumulate_grad_batches: 2
+  gradient_clip_val: 0.25 # Tighter clipping for stability
+  val_check_interval: 800 # More frequent validation
+  scheduler: "cosine_with_restarts"
+  min_lr: 0.00003 # Lower minimum LR
+  warmup_steps: 1500 # Longer warmup for stability
+  learning_rate: 0.00015 # Slightly lower LR for stability
+  weight_decay: 0.015 # Reduced weight decay
+  optimizer: "adamw8bit"
+
+  # FLOPS tracking configuration
+  track_flops: true # Enable FLOPS computation and logging
+  flops_log_frequency: 1000 # Log FLOPS every N steps
+
+  # Scheduler configuration
+  scheduler_config:
+    T_0: 800
+    T_mult: 2
+    eta_min_ratio: 0.1
+
+  # REBALANCED LOSS WEIGHTS - Prioritizes Stability
+  cross_modal_loss_weight: 1.2 # Moderate cross-modal focus (was 1.3)
+  text_generation_loss_weight: 1.0
+  memory_regularization_weight: 0.10 # Moderate memory regularization (was 0.15)
+  alignment_consistency_weight: 0.3 # Reduced for stability (was 0.4)
+  
+  # MEMORY-SPECIFIC LOSS TERMS - GENTLER APPROACH
+  memory_diversity_loss_weight: 0.04 # Reduced for smoother diversity (was 0.08)
+  memory_utilization_loss_weight: 0.03 # Reduced utilization pressure (was 0.06)
+  memory_entropy_loss_weight: 0.02 # Reduced entropy forcing (was 0.04)
+
+  # Token-aware training
+  track_token_usage: true
+  log_token_progress: true
+  stop_at_token_limit: false
+
+  # ENHANCED ALIGNMENT PARAMETERS
+  validate_alignment_every_n_steps: 300 # More frequent alignment checks
+  log_alignment_metrics: true
+  alignment_loss_scaling: "adaptive"
+
+# COMPREHENSIVE MEMORY MONITORING
+logging:
+  log_every_n_steps: 100
+  viz_every_n_epochs: 2 # More frequent visualization
+  save_head_patterns: true
+  analyze_memory_attention: true
+  analyze_cross_modal: true
+  track_token_alignment: true
+  
+  # ENHANCED MEMORY LOGGING
+  log_memory_diversity_evolution: true
+  log_memory_utilization_trends: true
+  log_memory_specialization_metrics: true
+  memory_analysis_frequency: 200 # Every 200 steps
+
+# Weights & Biases (Enhanced Memory Monitoring)
+wandb:
+  project: "bitmar-100M-optimized-memory"
+  entity: "babylm-ntust"
+  api_key: null
+  log_every_n_steps: 50 # More frequent logging
+  log_attention: true
+  log_memory: true
+  log_gradients: true
+  log_token_usage: true
+  log_cross_modal_similarity: true
+  log_alignment_quality: true
+  log_caption_image_matching: true
+  log_flops: true # NEW: Enable FLOPS logging to wandb
+  save_code: true
+  create_plots: true
+  plot_attention_heatmaps: true
+  plot_memory_usage: true
+  plot_token_distribution: true
+  plot_alignment_metrics: true
+
+  # ENHANCED MEMORY VISUALIZATION
+  log_memory_evolution: true
+  plot_memory_evolution_heatmap: true
+  plot_memory_diversity: true
+  plot_memory_access_patterns: true
+  memory_visualization_frequency: 25000 # More frequent memory viz
+  memory_snapshot_frequency: 5000 # More frequent snapshots
+
+  # COMPREHENSIVE MEMORY METRICS
+  track_memory_metrics:
+    - "memory_diversity_score"
+    - "memory_specialization_score"
+    - "memory_usage_entropy"
+    - "cross_modal_memory_ratio"
+    - "memory_slot_utilization"
+    - "memory_update_frequency"
+    - "memory_retrieval_accuracy"
+    - "memory_consolidation_index" # NEW: Tracks memory consolidation
+    - "memory_diversity_trend" # NEW: Tracks diversity trends
+    - "memory_utilization_stability" # NEW: Tracks utilization stability
+    - "text_learning_trajectory" # NEW: Text learning progression
+    - "vision_learning_trajectory" # NEW: Vision learning progression
+    - "trajectory_convergence_rate" # NEW: How fast text/vision converge
+    - "cross_modal_alignment_quality" # NEW: Quality of text-vision alignment
+    - "total_gflops" # NEW: Total FLOPS consumption
+    - "avg_gflops_per_step" # NEW: Average FLOPS per training step
+    - "flops_per_token" # NEW: FLOPS consumed per token processed
+
+# Evaluation
+evaluation:
+  metrics: ["bleu", "rouge", "cross_modal_similarity", "memory_efficiency"]
+  generate_samples: true
+  num_samples: 20
+  max_generation_length: 32
+  temperature: 0.8
+  top_p: 0.9
+  evaluate_alignment: true
+  
+  # MEMORY-SPECIFIC EVALUATION
+  evaluate_memory_diversity: true
+  evaluate_memory_utilization: true
+  memory_evaluation_frequency: 2000 # Every 2000 steps
+  
+  # COMPREHENSIVE BENCHMARK EVALUATIONS
+  benchmark_evaluations:
+    enabled: true
+    eval_frequency_steps: 5000 # Run benchmarks every 5000 steps
+    eval_frequency_epochs: 2 # Run benchmarks every 2 epochs
+    max_samples_per_task: 500 # Limit samples for efficiency
+    few_shot_examples: 3 # Few-shot learning examples
+    use_episodic_analysis: true # Analyze episodic memory impact
+    
+    # tinyBenchmarks Suite - Official package evaluation using IRT
+    evaluate_tiny_benchmarks: true # Use official tinyBenchmarks package
+    tiny_benchmarks:
+      datasets:
+        - 'tinyMMLU'          # Multiple choice questions
+        - 'tinyTruthfulQA'    # Truthfulness evaluation
+        - 'tinyGSM8K'         # Math word problems
+        - 'tinyWinogrande'    # Commonsense reasoning
+        - 'tinyARC'           # Abstract reasoning
+        - 'tinyHellaSwag'     # Commonsense NLI
+        - 'tinyAlpacaEval'    # Instruction following
+      use_irt_estimates: true    # Use IRT-based scoring from official package
+      max_samples_per_dataset: 100  # Full tiny dataset (100 samples each)
+    
+    # Legacy tinyBenchmarks evaluation (deprecated in favor of official package)
+    evaluate_tiny_mmlu: false # Disabled - use official tinyBenchmarks instead
+    evaluate_tiny_helm: false # Disabled - use official tinyBenchmarks instead
+    
+    # WildChat for conversational evaluation optimized for TinyLLM
+    evaluate_wildchat_tinyllm: true # WildChat subset optimized for tiny language models
+    wildchat_tinyllm:
+      max_conversations: 50  # Reduced for tiny model evaluation
+      conversation_types: ["factual", "instructional", "explanatory"]
+      evaluate_conversation_quality: true
+      evaluate_instruction_following: true
+      evaluate_knowledge_grounding: true
+    
+    # Conversational Benchmarks (legacy)
+    evaluate_wildchat: false # Disabled in favor of TinyLLM-optimized version
+    
+    # Episodic Memory Specialized Benchmarks
+    evaluate_episodic_benchmarks: true # Custom episodic memory tests
+    
+    # Benchmark-specific configurations
+    tiny_mmlu_config:
+      subjects: ["abstract_algebra", "anatomy", "astronomy", "business_ethics", "clinical_knowledge", 
+                "college_biology", "college_chemistry", "college_computer_science", "college_mathematics", 
+                "college_medicine", "college_physics", "computer_security", "conceptual_physics", 
+                "econometrics", "electrical_engineering", "elementary_mathematics", "formal_logic", 
+                "global_facts", "high_school_biology", "high_school_chemistry", "high_school_computer_science",
+                "high_school_european_history", "high_school_geography", "high_school_government_and_politics",
+                "high_school_macroeconomics", "high_school_mathematics", "high_school_microeconomics",
+                "high_school_physics", "high_school_psychology", "high_school_statistics", "high_school_us_history",
+                "high_school_world_history", "human_aging", "human_sexuality", "international_law", "jurisprudence",
+                "logical_fallacies", "machine_learning", "management", "marketing", "medical_genetics",
+                "miscellaneous", "moral_disputes", "moral_scenarios", "nutrition", "philosophy",
+                "prehistory", "professional_accounting", "professional_law", "professional_medicine",
+                "professional_psychology", "public_relations", "security_studies", "sociology", "us_foreign_policy",
+                "virology", "world_religions"]
+      sample_per_subject: 10 # Sample 10 questions per subject for efficiency
+      
+    tiny_helm_config:
+      tasks: ["boolq", "piqa", "hellaswag", "winogrande", "arc_easy", "openbookqa"]
+      use_few_shot: true
+      few_shot_k: 3
+      
+    wildchat_config:
+      conversation_types: ["factual_question", "explanation", "instruction", "assistance", "general"]
+      max_conversation_length: 200 # Token limit per conversation
+      evaluate_knowledge_recall: true
+      evaluate_response_coherence: true
+      
+    episodic_benchmarks_config:
+      # Fast fact learning tests
+      fact_learning_speed:
+        enabled: true
+        num_facts: 20
+        fact_complexity: "simple" # simple, medium, complex
+        test_immediate_recall: true
+        test_delayed_recall: true
+        
+      # Knowledge interference tests
+      knowledge_interference:
+        enabled: true
+        interference_type: "similar_facts" # similar_facts, contradictory_facts, random_facts
+        num_interference_facts: 10
+        test_retention_after_interference: true
+        
+      # Memory consolidation tests
+      memory_consolidation:
+        enabled: true
+        consolidation_period_steps: 1000
+        test_consolidation_quality: true
+        test_memory_stability: true
+        
+      # Cross-modal episodic learning
+      cross_modal_episodic:
+        enabled: true
+        test_text_to_vision_transfer: true
+        test_vision_to_text_transfer: true
+        test_multimodal_fact_learning: true
+        
+    # Performance optimization for benchmarks
+    optimization:
+      use_model_cache: true # Cache model states for efficiency
+      parallel_evaluation: false # Set to true if you have multiple GPUs
+      early_stopping: true # Stop evaluation early if performance is very poor
+      memory_efficient_mode: true # Use memory-efficient evaluation strategies
+  
+  # TINY MODEL-SPECIFIC EVALUATIONS
+  tiny_model_evaluations:
+    enabled: true
+    eval_frequency_steps: 2000 # Same as memory evaluation frequency
+    eval_frequency_epochs: 1 # Every epoch
+    
+    # Core tiny model metrics
+    evaluate_parameter_efficiency: true # Parameters vs performance ratio
+    evaluate_memory_efficiency: true # Memory usage vs accuracy
+    evaluate_inference_speed: true # Speed benchmarks for tiny models
+    evaluate_convergence_speed: true # How fast the model learns
+    
+    # Episodic learning specific for tiny models
+    evaluate_episodic_efficiency: true # Episodic memory effectiveness
+    evaluate_fast_fact_learning: true # How quickly new facts are learned
+    evaluate_knowledge_retention: true # How well knowledge is retained
+    evaluate_interference_resistance: true # Resistance to catastrophic forgetting
+    
+    # Cross-modal efficiency for tiny models
+    evaluate_cross_modal_efficiency: true # Text-vision alignment efficiency
+    evaluate_modality_balance: true # Balance between text and vision learning
+    evaluate_fusion_effectiveness: true # How well cross-modal fusion works
+    
+    # Deployment readiness metrics
+    evaluate_sd_card_readiness: true # Metrics for SD card deployment
+    evaluate_edge_device_metrics: true # Edge device performance metrics
+    evaluate_low_resource_performance: true # Performance under resource constraints
+    
+    # BabyLM-specific tiny model evaluations
+    babylm_tiny_evaluations:
+      enabled: true
+      # Focus on tasks most relevant for tiny models
+      priority_tasks: ["blimp_simple", "glue_subset", "simple_qa", "basic_reasoning"]
+      # Reduced evaluation set for efficiency
+      quick_eval_tasks: ["cola", "sst2", "mrpc"] # Lightweight GLUE tasks
+      full_eval_tasks: ["all"] # Full evaluation when needed
+      
+      # Evaluation strategies optimized for tiny models
+      use_few_shot: true # Few-shot evaluation suitable for tiny models
+      few_shot_examples: 5 # Small number of examples
+      use_lightweight_metrics: true # Focus on key metrics
+      skip_heavy_tasks: true # Skip computationally expensive tasks
+      
+      # Episodic memory evaluation on BabyLM tasks
+      test_episodic_on_babylm: true # Test episodic learning on BabyLM tasks
+      episodic_learning_tasks: ["fact_recall", "simple_qa", "basic_reasoning"]
+
+# Hardware optimization
+hardware:
+  use_mixed_precision: true
+  enable_checkpointing: true
+  optimize_memory_usage: true
+  pin_memory: true

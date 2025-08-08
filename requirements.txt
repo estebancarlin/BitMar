@@ -24,6 +24,10 @@ typing-extensions
 huggingface-hub
 codecarbon
 
+# FLOPS computation libraries (for training efficiency tracking)
+fvcore  # Preferred for FLOPS counting
+ptflops  # Alternative FLOPS computation library
+
 # Additional testing dependencies
 pytest
 rouge-score
