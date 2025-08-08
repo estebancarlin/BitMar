@@ -2,6 +2,36 @@
 
 This folder contains scripts to evaluate models for the BabyLM 2025 Challenge, ensuring compatibility with the official evaluation pipeline and generating submission-ready results.
 
+## (WILL BE DELETED) FOR TESTING EVAL SCRIPTS : 
+Run the Tests
+```bash
+# Make test scripts executable
+chmod +x evals-2025/testing_baseline.sh
+chmod +x evals-2025/testing_quick_integration.sh
+
+# Run quick test first
+cd evals-2025/
+./testing_quick_integration.sh
+
+# If that works, try the more comprehensive test
+python testing_mock_data.py
+
+# Test with real models
+python testing_small_models.py
+```
+
+Test Individual Components
+```bash
+# Test just the results processing
+python results_processing/collate_all_results.py --help
+
+# Test just the analysis
+python analysis/performance_analysis.py test-model --help
+
+# Test model validation with GPT-2 (small and available)
+python model_management/validate_model_compatibility.py --model_path gpt2 --architecture causal
+```
+
 ## Quick Start
 
 1. **Setup environment:**
@@ -68,3 +98,4 @@ Create Analysis Report
 - Fast evaluations are required for intermediate checkpoints
 - Full evaluation (including fine-tuning) only needed for final model
 - Results are automatically formatted for BabyLM submission
+
