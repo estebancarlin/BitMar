@@ -1,6 +1,8 @@
-# BitMar 100M Token Configuration
+# BitMar 100M Token Configuration - Optimized for Tiny Edge Deployment
 # Exactly 100M tokens: 50M from aligned image captions + 50M from train_50M text
 # Optimized for balanced cross-modal understanding and text generation
+# Episodic Memory Parameter Reduction: 16 slots × 64 dims = ~13K params (vs 32×128 = ~53K)
+# Total Memory Ratio: ~5-8% of model parameters for optimal edge deployment
 
 model:
   # BitNet Text Encoder (Optimized for 100M tokens)
@@ -23,17 +25,22 @@ model:
   vision_pool_size: 2 # 2x2 pooling
 
   # Cross-modal fusion (Balanced for 100M tokens)
-  fusion_hidden_size: 128 # Match text encoder dim for consistency
+  fusion_hidden_size: 64 # Match episode dimension for consistency
   fusion_num_heads: 4 # More heads for better alignment
   fusion_num_layers: 2 # Deeper fusion for understanding
 
-  # Episodic Memory (Optimized for 100M tokens)
-  memory_size: 32 # 32 memory slots for balanced storage
-  episode_dim: 128 # Match fusion dimension for consistency
-  memory_alpha: 0.2 # Balanced adaptation rate
+  # Episodic Memory (Optimized for Tiny Edge Deployment)
+  memory_size: 16 # 16 memory slots for efficient edge deployment
+  episode_dim: 64 # Optimized dimension for tiny model efficiency
+  memory_alpha: 0.15 # Faster adaptation for edge environments
   direct_writing: true
   memory_compression: true # Enable memory compression
   enable_adaptive_training: true # Enable adaptive cross-modal training
+  
+  # Edge-specific optimizations
+  memory_quantization: true # Enable memory quantization for edge deployment
+  memory_access_threshold: 0.1 # Threshold for memory access optimization
+  memory_consolidation: true # Enable memory consolidation for efficiency
 
   # Model configuration
   max_seq_len: 256 # Balanced sequence length

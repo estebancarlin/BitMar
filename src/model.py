@@ -413,7 +413,7 @@ class BitNetTextDecoder(nn.Module):
 
 
 class EpisodicMemory(nn.Module):
-    """Episodic Memory mechanism inspired by Larimar"""
+    """Episodic Memory mechanism inspired by Larimar - Optimized for Tiny Edge Deployment"""
 
     def __init__(
         self,
@@ -421,7 +421,11 @@ class EpisodicMemory(nn.Module):
         episode_dim: int,
         alpha: float = 0.1,
         direct_writing: bool = True,
-        observation_noise_std: float = 1e-6
+        observation_noise_std: float = 1e-6,
+        memory_compression: bool = True,
+        memory_quantization: bool = True,
+        memory_access_threshold: float = 0.1,
+        memory_consolidation: bool = True
     ):
         super().__init__()
         self.memory_size = memory_size
@@ -429,91 +433,260 @@ class EpisodicMemory(nn.Module):
         self.alpha = alpha
         self.direct_writing = direct_writing
         self.observation_noise_std = observation_noise_std
+        self.memory_compression = memory_compression
+        self.memory_quantization = memory_quantization
+        self.memory_access_threshold = memory_access_threshold
+        self.memory_consolidation = memory_consolidation
 
-        # Memory storage
+        # Memory storage - optimized for edge deployment
         self.register_buffer('memory', torch.zeros(memory_size, episode_dim))
         self.register_buffer('memory_age', torch.zeros(memory_size))
         self.register_buffer('memory_usage', torch.zeros(memory_size))
+        self.register_buffer('memory_importance', torch.ones(memory_size))  # Importance scores for selective forgetting
+        
+        # Edge-specific buffers
+        if memory_consolidation:
+            self.register_buffer('consolidated_memory', torch.zeros(memory_size // 2, episode_dim))
+            self.register_buffer('consolidation_threshold', torch.tensor(10.0))  # Usage threshold for consolidation
 
-        # Memory access networks
-        self.query_net = BitNetLinear(episode_dim, episode_dim)
-        self.key_net = BitNetLinear(episode_dim, episode_dim)
-        self.value_net = BitNetLinear(episode_dim, episode_dim)
+        # Memory access networks with reduced complexity for edge deployment
+        if memory_compression:
+            # Compressed access with smaller intermediate dimensions
+            compressed_dim = episode_dim // 2
+            self.query_compress = BitNetLinear(episode_dim, compressed_dim)
+            self.key_compress = BitNetLinear(episode_dim, compressed_dim)
+            self.value_expand = BitNetLinear(compressed_dim, episode_dim)
+            
+            self.query_net = BitNetLinear(compressed_dim, compressed_dim)
+            self.key_net = BitNetLinear(compressed_dim, compressed_dim)
+            self.value_net = BitNetLinear(compressed_dim, compressed_dim)
+        else:
+            self.query_net = BitNetLinear(episode_dim, episode_dim)
+            self.key_net = BitNetLinear(episode_dim, episode_dim)
+            self.value_net = BitNetLinear(episode_dim, episode_dim)
 
-    def write_memory(self, episode: torch.Tensor) -> torch.Tensor:
-        """Write episode to memory"""
+        # Selective forgetting mechanism
+        self.forgetting_gate = BitNetLinear(episode_dim, 1)
+        
+        # Fast fact editing mechanism
+        self.fact_update_gate = BitNetLinear(episode_dim * 2, episode_dim)
+        
+        # Memory consolidation step counter
+        self.register_buffer('consolidation_step', torch.tensor(0))
+
+    def selective_forgetting(self, importance_scores: torch.Tensor) -> torch.Tensor:
+        """Implement selective forgetting based on importance scores"""
+        # Forget least important memories below threshold
+        forget_mask = importance_scores < self.memory_access_threshold
+        
+        if forget_mask.any():
+            # Gradually reduce importance of forgotten memories
+            self.memory_importance[forget_mask] *= 0.9
+            
+            # Clear memory slots that are completely unimportant
+            clear_mask = self.memory_importance < 0.01
+            if clear_mask.any():
+                self.memory[clear_mask] = 0
+                self.memory_age[clear_mask] = 0
+                self.memory_usage[clear_mask] = 0
+                self.memory_importance[clear_mask] = 1.0  # Reset for reuse
+        
+        return forget_mask
+
+    def fast_fact_editing(self, episode: torch.Tensor, update_mask: torch.Tensor) -> torch.Tensor:
+        """Fast fact editing without retraining - directly update memory slots"""
+        if update_mask.any():
+            # Find memory slots to update based on similarity
+            similarities = torch.matmul(episode, self.memory.transpose(0, 1))
+            _, most_similar_indices = similarities.max(dim=1)
+            
+            # Update memory with new facts
+            for i, idx in enumerate(most_similar_indices):
+                if update_mask[i]:
+                    # Combine old and new information
+                    old_memory = self.memory[idx]
+                    combined = torch.cat([old_memory, episode[i]], dim=0)
+                    updated_memory = self.fact_update_gate(combined)
+                    
+                    # Direct update (no retraining needed)
+                    self.memory[idx] = updated_memory
+                    self.memory_importance[idx] = min(2.0, self.memory_importance[idx] + 0.2)  # Increase importance
+        
+        return episode
+
+    def memory_consolidation(self):
+        """Consolidate frequently accessed memories for efficiency"""
+        if not self.memory_consolidation:
+            return
+            
+        self.consolidation_step += 1
+        
+        # Consolidate every 100 steps
+        if self.consolidation_step % 100 == 0:
+            # Find most frequently used memories
+            high_usage_mask = self.memory_usage > self.consolidation_threshold
+            
+            if high_usage_mask.any():
+                high_usage_indices = torch.where(high_usage_mask)[0]
+                
+                # Consolidate up to half of memory slots
+                consolidation_slots = min(len(high_usage_indices), self.memory_size // 2)
+                if consolidation_slots > 0:
+                    # Average highly used memories for consolidation
+                    consolidated_indices = high_usage_indices[:consolidation_slots]
+                    self.consolidated_memory[:consolidation_slots] = self.memory[consolidated_indices].mean(dim=0, keepdim=True)
+
+    def write_memory(self, episode: torch.Tensor, is_fact_update: bool = False) -> torch.Tensor:
+        """Write episode to memory with edge optimizations"""
         batch_size = episode.size(0)
 
-        if self.direct_writing:
-            # Direct writing: find least recently used slots
-            # Ensure we don't request more indices than available memory slots
-            k = min(batch_size, self.memory_size)
-            _, lru_indices = self.memory_age.topk(k, largest=False)
+        # Fast fact editing check
+        if is_fact_update:
+            update_mask = torch.ones(batch_size, dtype=torch.bool, device=episode.device)
+            episode = self.fast_fact_editing(episode, update_mask)
 
-            # If batch_size > memory_size, we need to handle multiple batches
+        if self.direct_writing:
+            # Direct writing: find least recently used slots considering importance
+            k = min(batch_size, self.memory_size)
+            
+            # Weight LRU by inverse importance (prefer to overwrite less important memories)
+            weighted_age = self.memory_age / (self.memory_importance + 1e-8)
+            _, lru_indices = weighted_age.topk(k, largest=False)
+
+            # Handle batch size larger than memory
             if batch_size > self.memory_size:
-                # Process in chunks of memory_size
                 for i in range(0, batch_size, self.memory_size):
                     end_idx = min(i + self.memory_size, batch_size)
                     chunk_size = end_idx - i
 
                     # Get LRU indices for this chunk
-                    _, chunk_lru_indices = self.memory_age.topk(chunk_size, largest=False)
+                    _, chunk_lru_indices = weighted_age.topk(chunk_size, largest=False)
 
                     # Update memory slots
                     self.memory[chunk_lru_indices] = episode[i:end_idx].detach()
                     self.memory_age[chunk_lru_indices] = self.memory_age.max() + 1 + i
                     self.memory_usage[chunk_lru_indices] += 1
+                    
+                    # Update importance for new memories
+                    self.memory_importance[chunk_lru_indices] = torch.clamp(
+                        self.memory_importance[chunk_lru_indices] + 0.1, max=2.0
+                    )
             else:
-                # Normal case: batch_size <= memory_size
-                # Update memory slots
+                # Normal case
                 self.memory[lru_indices] = episode[:k].detach()
                 self.memory_age[lru_indices] = self.memory_age.max() + 1
                 self.memory_usage[lru_indices] += 1
+                
+                # Update importance
+                self.memory_importance[lru_indices] = torch.clamp(
+                    self.memory_importance[lru_indices] + 0.1, max=2.0
+                )
+
+        # Trigger consolidation and selective forgetting
+        self.memory_consolidation()
+        self.selective_forgetting(self.memory_importance)
 
         return episode
 
     def read_memory(self, query: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Read from memory using attention mechanism"""
+        """Read from memory using attention mechanism with edge optimizations"""
         batch_size = query.size(0)
 
         # Validate query dimensions
         if query.size(-1) != self.episode_dim:
             raise ValueError(f"Query dimension {query.size(-1)} doesn't match memory episode_dim {self.episode_dim}")
 
-        # Compute attention weights
-        q = self.query_net(query)  # [batch_size, episode_dim]
-        k = self.key_net(self.memory)  # [memory_size, episode_dim]
-        v = self.value_net(self.memory)  # [memory_size, episode_dim]
+        # Memory compression for edge deployment
+        if self.memory_compression:
+            # Compress query and memory for efficient processing
+            q_compressed = self.query_compress(query)
+            memory_compressed = self.key_compress(self.memory)
+            
+            # Compute attention on compressed representations
+            q = self.query_net(q_compressed)
+            k = self.key_net(memory_compressed)
+            v = self.value_net(memory_compressed)
+            
+            # Expand values back to full dimension
+            v_expanded = self.value_expand(v)
+        else:
+            # Standard processing
+            q = self.query_net(query)
+            k = self.key_net(self.memory)
+            v_expanded = self.value_net(self.memory)
 
-        # Attention scores
-        attention_scores = torch.matmul(
-            q, k.transpose(0, 1)) / math.sqrt(self.episode_dim)
-        # [batch_size, memory_size]
+        # Attention scores with importance weighting
+        attention_scores = torch.matmul(q, k.transpose(0, 1)) / math.sqrt(q.size(-1))
+        
+        # Weight attention by memory importance for better retrieval
+        importance_weights = self.memory_importance.unsqueeze(0).expand(batch_size, -1)
+        attention_scores = attention_scores * importance_weights
+        
+        # Apply access threshold for sparse attention (edge optimization)
+        if self.memory_access_threshold > 0:
+            attention_mask = attention_scores < self.memory_access_threshold
+            attention_scores = attention_scores.masked_fill(attention_mask, float('-inf'))
+        
         attention_weights = F.softmax(attention_scores, dim=-1)
 
-        # Weighted memory retrieval
-        # [batch_size, episode_dim]
-        retrieved = torch.matmul(attention_weights, v)
+        # Weighted memory retrieval with importance consideration
+        retrieved = torch.matmul(attention_weights, v_expanded)
 
-        # Update memory access statistics
+        # Update memory access statistics with importance decay
         access_counts = attention_weights.sum(0)
         self.memory_usage += access_counts.detach()
+        
+        # Boost importance of accessed memories (reinforcement learning principle)
+        accessed_mask = access_counts > 0.01
+        self.memory_importance[accessed_mask] = torch.clamp(
+            self.memory_importance[accessed_mask] + 0.05, max=2.0
+        )
+
+        # Memory quantization for edge deployment
+        if self.memory_quantization and not self.training:
+            retrieved = self.quantize_for_edge(retrieved)
 
         return retrieved, attention_weights
 
-    def forward(self, episode: torch.Tensor, mode: str = "read_write") -> Tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass through episodic memory"""
+    def quantize_for_edge(self, tensor: torch.Tensor) -> torch.Tensor:
+        """Quantize tensor for edge deployment efficiency"""
+        if not self.memory_quantization:
+            return tensor
+            
+        # Simple 8-bit quantization for edge deployment
+        tensor_min, tensor_max = tensor.min(), tensor.max()
+        scale = (tensor_max - tensor_min) / 255.0
+        
+        if scale < 1e-8:
+            return tensor
+            
+        quantized = ((tensor - tensor_min) / scale).round().clamp(0, 255)
+        dequantized = quantized * scale + tensor_min
+        
+        return dequantized
+
+    def forward(self, episode: torch.Tensor, mode: str = "read_write", is_fact_update: bool = False) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass through episodic memory with edge optimizations"""
         if mode == "write":
-            return self.write_memory(episode), None
+            return self.write_memory(episode, is_fact_update), None
         elif mode == "read":
             return self.read_memory(episode)
         else:  # read_write
             # Write episode to memory
-            self.write_memory(episode)
+            self.write_memory(episode, is_fact_update)
             # Read from memory
             retrieved, attention_weights = self.read_memory(episode)
             return retrieved, attention_weights
+
+    def get_memory_stats(self) -> Dict[str, float]:
+        """Get memory statistics for monitoring"""
+        return {
+            'memory_utilization': (self.memory_usage > 0).float().mean().item(),
+            'average_importance': self.memory_importance.mean().item(),
+            'memory_diversity': torch.var(self.memory.flatten()).item(),
+            'consolidation_step': self.consolidation_step.item(),
+            'active_slots': (self.memory.norm(dim=1) > 1e-6).sum().item()
+        }
 
 
 class CrossModalFusion(nn.Module):
@@ -725,12 +898,16 @@ class BitMarModel(nn.Module):
             num_layers=config['fusion_num_layers']
         )
 
-        # Episodic memory with BitNet quantization
+        # Episodic memory with BitNet quantization and edge optimizations
         self.memory = EpisodicMemory(
             memory_size=config['memory_size'],
             episode_dim=config['episode_dim'],
             alpha=config['memory_alpha'],
-            direct_writing=config['direct_writing']
+            direct_writing=config['direct_writing'],
+            memory_compression=config.get('memory_compression', True),
+            memory_quantization=config.get('memory_quantization', True),
+            memory_access_threshold=config.get('memory_access_threshold', 0.1),
+            memory_consolidation=config.get('memory_consolidation', True)
         )
 
         # Additional BitNet projection layers
@@ -1295,6 +1472,193 @@ class BitMarModel(nn.Module):
             loss_dict['memory_loss'] = memory_loss
             
         return loss_dict
+
+    def fast_fact_edit(self, fact_text: str, new_value: str, vision_features: Optional[torch.Tensor] = None) -> Dict[str, float]:
+        """
+        Fast fact editing without retraining - directly update episodic memory
+        
+        Args:
+            fact_text: The fact to be updated (tokenized internally)
+            new_value: The new value for the fact (tokenized internally) 
+            vision_features: Optional vision features if the fact has visual component
+            
+        Returns:
+            Dict with editing success metrics
+        """
+        self.eval()
+        
+        with torch.no_grad():
+            # Tokenize the fact and new value
+            fact_tokens = self.tokenizer.encode(fact_text, return_tensors='pt', max_length=256, truncation=True)
+            new_tokens = self.tokenizer.encode(new_value, return_tensors='pt', max_length=256, truncation=True)
+            
+            # Create attention mask
+            fact_mask = torch.ones_like(fact_tokens)
+            new_mask = torch.ones_like(new_tokens)
+            
+            # Handle vision features
+            if vision_features is None:
+                # Create dummy vision features for text-only facts
+                vision_features = torch.zeros(1, self.config['vision_encoder_dim'], device=fact_tokens.device)
+                has_vision = torch.tensor([False], device=fact_tokens.device)
+            else:
+                vision_features = vision_features.unsqueeze(0) if vision_features.dim() == 1 else vision_features
+                has_vision = torch.tensor([True], device=fact_tokens.device)
+            
+            # Encode original fact
+            original_result = self.forward(
+                input_ids=fact_tokens,
+                attention_mask=fact_mask,
+                vision_features=vision_features,
+                mode="eval",
+                has_vision=has_vision
+            )
+            
+            # Create episode for the new fact
+            new_result = self.forward(
+                input_ids=new_tokens,
+                attention_mask=new_mask,
+                vision_features=vision_features,
+                mode="eval",
+                has_vision=has_vision
+            )
+            
+            # Perform fast fact editing in episodic memory
+            edit_episode = new_result['episode']
+            updated_memory, _ = self.memory(edit_episode, mode="write", is_fact_update=True)
+            
+            # Verify the edit by retrieving and checking similarity
+            retrieved_memory, attention_weights = self.memory(edit_episode, mode="read")
+            
+            # Compute editing success metrics
+            similarity_score = F.cosine_similarity(edit_episode, retrieved_memory, dim=1).mean().item()
+            attention_entropy = -(attention_weights * torch.log(attention_weights + 1e-8)).sum(dim=1).mean().item()
+            
+            return {
+                'editing_success': similarity_score > 0.7,  # Threshold for successful edit
+                'similarity_score': similarity_score,
+                'attention_entropy': attention_entropy,
+                'memory_utilization': self.memory.get_memory_stats()['memory_utilization']
+            }
+
+    def selective_forget(self, forget_texts: List[str], forget_threshold: float = 0.5) -> Dict[str, float]:
+        """
+        Selective forgetting - reduce importance of specified facts in episodic memory
+        
+        Args:
+            forget_texts: List of texts/facts to selectively forget
+            forget_threshold: Threshold below which memories are considered forgotten
+            
+        Returns:
+            Dict with forgetting success metrics
+        """
+        self.eval()
+        
+        forgotten_count = 0
+        total_processed = 0
+        
+        with torch.no_grad():
+            for text in forget_texts:
+                # Tokenize the text to forget
+                tokens = self.tokenizer.encode(text, return_tensors='pt', max_length=256, truncation=True)
+                mask = torch.ones_like(tokens)
+                
+                # Create dummy vision features
+                vision_features = torch.zeros(1, self.config['vision_encoder_dim'], device=tokens.device)
+                has_vision = torch.tensor([False], device=tokens.device)
+                
+                # Get memory representation of the text
+                result = self.forward(
+                    input_ids=tokens,
+                    attention_mask=mask,
+                    vision_features=vision_features,
+                    mode="eval",
+                    has_vision=has_vision
+                )
+                
+                episode = result['episode']
+                
+                # Find most similar memory slots
+                similarities = torch.matmul(episode, self.memory.memory.transpose(0, 1))
+                most_similar_indices = similarities.argmax(dim=1)
+                
+                # Reduce importance of similar memory slots
+                for idx in most_similar_indices:
+                    if similarities[0, idx] > forget_threshold:
+                        self.memory.memory_importance[idx] *= 0.3  # Reduce importance significantly
+                        if self.memory.memory_importance[idx] < 0.1:
+                            # Mark for clearing
+                            self.memory.memory[idx] = 0
+                            self.memory.memory_age[idx] = 0
+                            self.memory.memory_usage[idx] = 0
+                            self.memory.memory_importance[idx] = 1.0
+                            forgotten_count += 1
+                        
+                total_processed += 1
+        
+        return {
+            'forgotten_count': forgotten_count,
+            'total_processed': total_processed,
+            'forgetting_ratio': forgotten_count / max(total_processed, 1),
+            'memory_stats': self.memory.get_memory_stats()
+        }
+
+    def get_updated_knowledge_accuracy(self, test_facts: List[Tuple[str, str]], vision_features_list: Optional[List[torch.Tensor]] = None) -> Dict[str, float]:
+        """
+        Test accuracy on updated knowledge - verify that edited facts are correctly retrieved
+        
+        Args:
+            test_facts: List of (question, expected_answer) tuples
+            vision_features_list: Optional list of vision features for each fact
+            
+        Returns:
+            Dict with accuracy metrics
+        """
+        self.eval()
+        
+        correct_answers = 0
+        total_questions = len(test_facts)
+        
+        with torch.no_grad():
+            for i, (question, expected_answer) in enumerate(test_facts):
+                # Tokenize question
+                question_tokens = self.tokenizer.encode(question, return_tensors='pt', max_length=256, truncation=True)
+                question_mask = torch.ones_like(question_tokens)
+                
+                # Handle vision features
+                if vision_features_list and i < len(vision_features_list):
+                    vision_features = vision_features_list[i].unsqueeze(0) if vision_features_list[i].dim() == 1 else vision_features_list[i]
+                    has_vision = torch.tensor([True], device=question_tokens.device)
+                else:
+                    vision_features = torch.zeros(1, self.config['vision_encoder_dim'], device=question_tokens.device)
+                    has_vision = torch.tensor([False], device=question_tokens.device)
+                
+                # Get model response through episodic memory
+                result = self.forward(
+                    input_ids=question_tokens,
+                    attention_mask=question_mask,
+                    vision_features=vision_features,
+                    mode="eval",
+                    has_vision=has_vision
+                )
+                
+                # Generate answer (simplified - in practice would use beam search or sampling)
+                logits = result['logits']
+                predicted_tokens = torch.argmax(logits, dim=-1)
+                predicted_answer = self.tokenizer.decode(predicted_tokens[0], skip_special_tokens=True)
+                
+                # Simple string matching for accuracy (could be improved with semantic similarity)
+                if expected_answer.lower() in predicted_answer.lower():
+                    correct_answers += 1
+        
+        accuracy = correct_answers / max(total_questions, 1)
+        
+        return {
+            'accuracy': accuracy,
+            'correct_answers': correct_answers,
+            'total_questions': total_questions,
+            'memory_stats': self.memory.get_memory_stats()
+        }
 
 
 def count_parameters(model: nn.Module) -> Dict[str, int]:
