@@ -29,10 +29,10 @@ except Exception as e:
 
 # 2. Test with mock data
 echo "2. Testing with mock data..."
-python test_with_mock_data.py
+python testing_mock_data.py
 
 # 3. Test model validation (with small model)
 echo "3. Testing model validation..."
-python test_with_real_model.py
+python testing_small_models.py
 
 echo "✓ Quick test completed!"
