@@ -226,3 +226,11 @@ runpod_logs/
 test_outputs/
 cpu_test_results/
 compatibility_results/
+
+# Others
+evaluation-pipeline-2024/
+evaluation-pipeline-2025/
+gpu_test.py
+gpu_test.slurm
+models/
+train_bitmar.slurm
