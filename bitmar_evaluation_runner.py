@@ -61,6 +61,18 @@ class BitMarEvaluationRunner:
         for dir_path in [self.logs_dir, self.plots_dir, self.raw_results_dir, self.summary_dir]:
             dir_path.mkdir(exist_ok=True)
         
+        # Reconfigure logging to use logs directory
+        log_file = self.logs_dir / 'evaluation_run.log'
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler()
+            ],
+            force=True  # Force reconfiguration
+        )
+
         # Initialize results tracking
         self.evaluation_results = {}
         self.timing_info = {}
@@ -70,6 +82,7 @@ class BitMarEvaluationRunner:
         logger.info(f"   Evaluation data: {self.evaluation_data_dir}")
         logger.info(f"   Pipeline directory: {self.evaluation_pipeline_dir}")
         logger.info(f"   Results directory: {self.results_dir}")
+        logger.info(f"   Log file: {log_file}")
     
     def discover_model_epochs(self) -> List[Tuple[str, Path]]:
         """Discover available model epochs"""
@@ -210,6 +223,7 @@ class BitMarEvaluationRunner:
             --model_path_or_name {model_path} \\
             --backend {self.backend} \\
             --task vqa \\
+            --batch_size 1 \\
             --data_path "{self.evaluation_data_dir}/full_eval/vqa_filtered" \\
             --images_path=HuggingFaceM4/VQAv2 \\
             --image_split=validation"""
@@ -232,6 +246,7 @@ class BitMarEvaluationRunner:
             --model_path_or_name {model_path} \\
             --backend {self.backend} \\
             --task winoground \\
+            --batch_size 1 \\
             --data_path "{self.evaluation_data_dir}/full_eval/winoground_filtered" \\
             --images_path=facebook/winoground \\
             --image_split=test"""
@@ -249,24 +264,35 @@ class BitMarEvaluationRunner:
             "command": winoground_command
         }
         
-        # DevBench Evaluation
-        devbench_command = f"""python -m evaluation_pipeline.devbench.eval \\
-            --model {model_path} \\
-            --model_type custom \\
-            --image_model clip"""
-        
-        success, stdout, stderr = self.run_shell_command(
-            devbench_command,
-            f"DevBench evaluation - {epoch_name}",
-            timeout=3600
-        )
-        
-        results["devbench"] = {
-            "success": success,
-            "stdout": stdout,
-            "stderr": stderr,
-            "command": devbench_command
-        }
+        # Check if DevBench data exists before running
+        devbench_data_path = Path("evaluation_data/full_eval/devbench/evals/sem-things/spose_similarity.mat")
+        if devbench_data_path.exists():
+            # Run DevBench evaluation
+            devbench_command = f"""python -m evaluation_pipeline.devbench.eval \\
+                --model {model_path} \\
+                --model_type custom \\
+                --image_model clip"""
+            
+            success, stdout, stderr = self.run_shell_command(
+                devbench_command,
+                f"DevBench evaluation - {epoch_name}",
+                timeout=3600
+            )
+            
+            results["devbench"] = {
+                "success": success,
+                "stdout": stdout,
+                "stderr": stderr, 
+                "command": devbench_command
+            }
+        else:
+            logger.warning(f"⚠️ DevBench data not found, skipping DevBench evaluation")
+            results["devbench"] = {
+                "success": False,
+                "stdout": "",
+                "stderr": "DevBench data files not found",
+                "command": "skipped"
+            }
         
         # Save raw results
         for task, result in results.items():
@@ -281,7 +307,7 @@ class BitMarEvaluationRunner:
         
         logger.info(f"👶 Running AoA evaluation for {epoch_name}")
         
-        command = f"./eval_aoa.sh {model_path} {self.backend} multimodal"
+        command = f"./eval_aoa.sh {model_path} {self.backend} strict-small"
         
         success, stdout, stderr = self.run_shell_command(
             command,
@@ -332,19 +358,22 @@ class BitMarEvaluationRunner:
     
     def parse_text_results(self, stdout: str) -> Dict:
         """Parse text evaluation results"""
-        # This is a simplified parser - you'll need to adapt based on actual output format
+        import re
+        
         results = {}
         
         # Look for common patterns in the output
         lines = stdout.split('\n')
         for line in lines:
-            if 'accuracy' in line.lower() or 'score' in line.lower():
+            if any(keyword in line.lower() for keyword in ['accuracy', 'score', 'result']):
                 # Extract numerical values
-                import re
                 numbers = re.findall(r'\d+\.?\d*', line)
                 if numbers:
                     task_name = line.split(':')[0].strip() if ':' in line else 'overall'
-                    results[task_name] = float(numbers[0])
+                    try:
+                        results[task_name] = float(numbers[0])
+                    except (ValueError, IndexError):
+                        continue
         
         return results
     
@@ -489,20 +518,21 @@ class BitMarEvaluationRunner:
         if not self.timing_info:
             return
         
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(12, 8))
         
         epochs = list(self.timing_info.keys())
-        times = [self.timing_info[epoch].get('total_time', 0) / 3600 for epoch in epochs]
+        times = [self.timing_info[epoch].get('total_time', 0) for epoch in epochs]  # Keep in seconds
         
-        bars = ax.bar(epochs, times, alpha=0.7)
-        ax.set_title('Evaluation Time Analysis')
-        ax.set_ylabel('Time (hours)')
+        bars = ax.bar(epochs, times, alpha=0.7, color='skyblue')
+        ax.set_title('Evaluation Time Analysis (Seconds)', fontsize=14)
+        ax.set_ylabel('Time (seconds)')
+        ax.set_xlabel('Epoch')
         ax.tick_params(axis='x', rotation=45)
         
         # Add value labels on bars
         for bar, time_val in zip(bars, times):
             ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
-                   f'{time_val:.1f}h', ha='center', va='bottom')
+                f'{time_val:.1f}s', ha='center', va='bottom')
         
         plt.tight_layout()
         plt.savefig(self.plots_dir / 'timing_analysis.png', dpi=300, bbox_inches='tight')
@@ -511,6 +541,10 @@ class BitMarEvaluationRunner:
     def plot_success_rates(self):
         """Plot success rates for different evaluation types"""
         
+        if not self.evaluation_results:
+            logger.warning("No evaluation results for success rate plotting")
+            return
+            
         eval_types = ['text_fast', 'text_full', 'vqa', 'winoground', 'devbench', 'aoa']
         success_counts = {eval_type: 0 for eval_type in eval_types}
         total_counts = {eval_type: 0 for eval_type in eval_types}
@@ -522,18 +556,25 @@ class BitMarEvaluationRunner:
                     if epoch_results[eval_type].get('success', False):
                         success_counts[eval_type] += 1
         
-        success_rates = [success_counts[et] / max(total_counts[et], 1) for et in eval_types]
+        # Filter out eval types with no attempts
+        filtered_types = [et for et in eval_types if total_counts[et] > 0]
+        success_rates = [success_counts[et] / max(total_counts[et], 1) for et in filtered_types]
         
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(eval_types, success_rates, alpha=0.7, color='skyblue')
-        ax.set_title('Success Rates by Evaluation Type')
+        if not filtered_types:
+            logger.warning("No evaluation types with results found")
+            return
+        
+        fig, ax = plt.subplots(figsize=(12, 8))
+        bars = ax.bar(filtered_types, success_rates, alpha=0.7, color='lightgreen')
+        ax.set_title('Success Rates by Evaluation Type', fontsize=14)
         ax.set_ylabel('Success Rate')
         ax.set_ylim(0, 1)
         
-        # Add percentage labels
-        for bar, rate in zip(bars, success_rates):
-            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
-                   f'{rate:.1%}', ha='center', va='bottom')
+        # Add percentage labels and counts
+        for bar, rate, eval_type in zip(bars, success_rates, filtered_types):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                f'{rate:.1%}\n({success_counts[eval_type]}/{total_counts[eval_type]})', 
+                ha='center', va='bottom')
         
         plt.xticks(rotation=45)
         plt.tight_layout()
@@ -674,7 +715,7 @@ class BitMarEvaluationRunner:
                     completed_evaluations += 1
                 
                 # Full evaluation (only for latest epoch)
-                if run_full and epoch_name == "epoch_latest":
+                if run_full and epoch_name == "epoch_10":
                     pbar.set_description(f"Full eval - {epoch_name}")
                     results = self.run_text_evaluations(model_path, epoch_name, "full")
                     epoch_results.update(results)
