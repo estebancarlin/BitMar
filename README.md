@@ -38,6 +38,9 @@ python train_100M_tokens.py --config configs/bitmar_100M_tokens.yaml --device cu
 
 # Training with cache rebuild (if dataset changes)
 python train_100M_tokens.py --config configs/bitmar_100M_tokens.yaml --rebuild_cache
+
+# Updated training without memory module for ablation study
+python train_100M_tokens_no_memory.py --config configs/bitmar_100M_tokens_no_memory.yaml
 ```
 
 ### Training with Custom Checkpoint Frequency

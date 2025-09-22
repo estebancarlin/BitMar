@@ -1,0 +1,307 @@
+# BitMar 100M Token Configuration (No Memory)
+# Exactly 100M tokens: 50M from aligned image captions + 50M from train_50M text
+# Optimized for balanced cross-modal understanding and text generation
+
+model:
+  # BitNet Text Encoder (Optimized for 100M tokens)
+  vocab_size: 50257 # GPT-2 vocabulary
+  text_encoder_dim: 128 # Balanced size for 100M tokens
+  text_encoder_layers: 4 # More layers for better understanding
+  text_encoder_heads: 4 # More heads for cross-modal alignment
+
+  # BitNet Text Decoder (Optimized for generation)
+  text_decoder_dim: 128 # Match encoder dimension
+  text_decoder_layers: 4 # Sufficient for text generation
+  text_decoder_heads: 4 # Balance between quality and efficiency
+
+  # Vision processing (Balanced compression)
+  vision_encoder_dim: 768 # DiNOv2 input (fixed)
+  vision_latent_size: 128 # Match text encoder dim for consistency
+  vision_hidden_size: 64 # Intermediate processing
+  vision_compression_method: "learned_compression" # Best for cross-modal alignment
+  vision_spatial_pooling: true # 14x14 -> 7x7 spatial reduction
+  vision_pool_size: 2 # 2x2 pooling
+
+  # Cross-modal fusion (Balanced for 100M tokens)
+  fusion_hidden_size: 128 # Match text encoder dim for consistency
+  fusion_num_heads: 4 # More heads for better alignment
+  fusion_num_layers: 2 # Deeper fusion for understanding
+
+  # Model configuration
+  max_seq_len: 256 # Balanced sequence length
+  dropout: 0.15 # Moderate dropout for 100M tokens
+
+# Token counting and data constraints
+token_constraints:
+  total_tokens: 100000000 # Dataset contains exactly 100M tokens
+  caption_tokens: 50000000 # Exactly 50M from image captions (MUST be aligned with images)
+  text_tokens: 50000000 # Exactly 50M from train_50M
+  enforce_exact_count: true # Create dataset with exact token count
+  uniform_sampling: true # Uniform distribution across datasets
+  alignment_priority: "perfect_alignment" # CRITICAL: Perfect image-caption alignment required
+  preserve_image_caption_pairs: true # Never break image-caption pairs
+  strict_alignment_validation: true # Validate alignment during dataset creation
+
+# Vision feature configuration (Balanced)
+vision_feature_reduction:
+  enabled: true
+  method: "learned_compression" # Best for cross-modal alignment
+  target_dim: 64 # Balanced compression
+  spatial_pooling: true # Reduce spatial dimensions
+  pool_method: "attention" # Attention-based pooling for better features
+
+  # Compression parameters
+  hidden_dim: 128 # Intermediate compression layer
+  learnable: true # Enable learning during training
+  preserve_spatial_info: true # Keep spatial relationships
+
+data:
+  # Dataset configuration (100M Token Constrained)
+  dataset_dir: "../babylm_dataset"
+  text_encoder_name: "gpt2"
+  max_seq_length: 256 # Balanced sequence length
+
+  # Token counting parameters
+  count_tokens: true # Enable precise token counting
+  target_caption_tokens: 50000000 # Target caption tokens
+  target_text_tokens: 50000000 # Target text tokens
+  token_counting_method: "gpt2" # Use GPT-2 tokenizer for counting
+
+  # DataLoader settings (Multi-GPU Compatible)
+  batch_size: 384 # TOTAL batch size
+  num_workers: 10 # Workers per GPU
+  pin_memory: true # Pin memory for faster GPU transfer
+  persistent_workers: true # Keep workers alive between epochs
+
+  # Data mixing strategy (STRICT ALIGNMENT REQUIRED)
+  mix_ratio: 0.5 # 50% captions (with images), 50% text-only
+  shuffle_datasets: true # Shuffle for better mixing
+  ensure_alignment: true # CRITICAL: Ensure perfect image-caption alignment
+  validate_alignment: true # Validate alignment before training
+  alignment_verification: "strict" # Strict alignment verification
+  never_break_pairs: true # Never separate image-caption pairs
+  alignment_check_frequency: 1000 # Check alignment every 1000 samples
+
+  # No validation split - use entire dataset for training
+  use_validation: false
+  train_only: true
+
+# Attention analysis (Focused on cross-modal understanding)
+attention_analysis:
+  track_top_k: 5 # Track top 5 attention heads
+  log_every_n_steps: 200 # Regular logging
+  viz_every_n_epochs: 3 # Visualization every 3 epochs
+  save_head_patterns: true # Save patterns for analysis
+  analyze_memory_attention: false # Monitor episodic memory
+  analyze_cross_modal: true # Critical for alignment
+  track_token_alignment: true # Track image-text token alignment
+
+# Adaptive training configuration
+adaptive_training:
+  enabled: true # Enable adaptive training
+  similarity_window_size: 200 # Monitor similarity over 200 steps
+  drop_threshold: 0.12 # Intervention threshold for similarity drop
+  min_steps_between_interventions: 800 # Cooldown between interventions
+  freeze_duration_steps: 1500 # How long to freeze components
+  loss_rebalance_factor: 2.0 # Rebalance cross-modal loss
+  similarity_smoothing_alpha: 0.15 # EMA smoothing for similarity
+
+training:
+  # Training configuration (Train on 100M token dataset for up to 10 epochs)
+  max_epochs: 10 # Maximum 10 epochs as requested
+  accumulate_grad_batches: 2 # Reduced from 4 due to increased batch_size from 32 to 96
+  gradient_clip_val: 0.3 # Balanced gradient clipping
+  val_check_interval: 1000 # Reduced from 2000 for faster training with batch_size=96
+  scheduler: "cosine_with_restarts" # Cosine with restarts for better convergence
+  min_lr: 0.00005 # Reasonable minimum learning rate
+  warmup_steps: 1000 # Proper warmup for stability
+  learning_rate: 0.0002 # Balanced learning rate for 100M tokens
+  weight_decay: 0.02 # Balanced regularization
+  optimizer: "adamw8bit" # Stable optimizer choice
+
+  # Scheduler configuration
+  scheduler:
+    T_0: 1000
+    T_mult: 2
+    eta_min_ratio: 0.1
+
+  # Balanced training objectives (Enhanced alignment focus)
+  cross_modal_loss_weight: 1.5 # Higher weight for cross-modal alignment
+  text_generation_loss_weight: 1.0 # Standard weight for text generation
+  alignment_consistency_weight: 0.5 # Additional loss for alignment consistency
+
+  # Token-aware training (no stopping at token limit)
+  track_token_usage: true # Monitor token consumption for logging
+  log_token_progress: true # Log token usage progress
+  stop_at_token_limit: false # Don't stop at token limit - train full epochs
+
+  # Alignment-specific training parameters
+  validate_alignment_every_n_steps: 500 # Validate alignment frequently
+  log_alignment_metrics: true # Log alignment quality metrics
+  alignment_loss_scaling: "adaptive" # Adaptive scaling for alignment loss
+
+# Weights & Biases (Comprehensive logging for 100M token dataset training)
+wandb:
+  project: "bitmar-no-memory"
+  entity: "babylm-ntust"
+  api_key: null
+  log_every_n_steps: 100 # Regular logging
+  log_attention: true # Monitor attention patterns
+  log_memory: false # Monitor episodic memory (disabled)
+  log_gradients: true # Monitor gradient flow
+  log_token_usage: true # Track token consumption
+  log_cross_modal_similarity: true # Critical for alignment
+  log_alignment_quality: true # Track alignment quality metrics
+  log_caption_image_matching: true # Track caption-image matching accuracy
+  save_code: true
+  create_plots: true
+  plot_attention_heatmaps: false
+  plot_memory_usage: false # Disabled for no-memory version
+  plot_token_distribution: true # Track token usage distribution
+  plot_alignment_metrics: true # Track alignment quality over time
+
+# Evaluation (Comprehensive for balanced approach)
+evaluation:
+  metrics: ["bleu", "rouge", "cross_modal_similarity"]
+  generate_samples: true # Generate example outputs
+  num_samples: 20 # More samples for evaluation
+  max_generation_length: 32 # Reasonable generation length
+  temperature: 0.8 # Balanced creativity
+  top_p: 0.9 # Nucleus sampling
+
+  # Cross-modal evaluation (Enhanced alignment validation)
+  evaluate_alignment: true # Test image-text alignment
+  alignment_metrics:
+    [
+      "cosine_similarity",
+      "retrieval_accuracy",
+      "caption_image_matching",
+      "cross_modal_retrieval",
+    ]
+  alignment_threshold: 0.8 # Minimum alignment score required
+  validate_pairs_during_eval: true # Validate image-caption pairs during evaluation
+
+# Output directories
+output:
+  checkpoint_dir: "checkpoints_100M_dataset"
+  log_dir: "logs_100M_dataset"
+  attention_dir: "attention_100M_dataset"
+  results_dir: "results_100M_dataset"
+  token_logs_dir: "token_logs_100M_dataset" # Token usage logs
+
+# Performance targets for 100M tokens
+performance_targets:
+  max_model_size_mb: 50 # 50MB model size
+  target_cross_modal_similarity: 0.75 # Target similarity score
+  target_text_generation_quality: 0.6 # Target BLEU score
+
+# FLOPS tracking configuration
+flops_tracking:
+  enabled: true # Enable FLOPS tracking
+  log_frequency: 100 # Log FLOPS every 100 steps
+  save_statistics: true # Save detailed FLOPS statistics
+  estimate_theoretical: true # Calculate theoretical FLOPS estimates
+  track_peak_performance: true # Track peak throughput
+  log_to_wandb: true # Log FLOPS metrics to Weights & Biases
+
+  # Advanced FLOPS tracking settings
+  detailed_breakdown: true # Track FLOPS by component (attention, FFN, etc.)
+  memory_bandwidth_tracking: false # Advanced memory bandwidth tracking (experimental)
+  efficiency_analysis: true # Analyze computational efficiency
+
+  # FLOPS logging categories
+  track_components:
+    - "attention" # Self-attention mechanisms
+    - "feedforward" # Feed-forward networks
+    - "layer_norm" # Layer normalization
+    - "embeddings" # Input/output embeddings
+    - "vision_encoder" # Vision encoding operations
+    - "cross_modal_fusion" # Cross-modal fusion operations
+
+# Token tracking and constraints (Enhanced alignment tracking)
+token_tracking:
+  log_frequency: 1000 # Log token usage every 1000 steps
+  save_token_distribution: true # Save token distribution stats
+  monitor_caption_text_ratio: true # Monitor 50/50 split
+  enforce_token_limits: false # Don't enforce limits during training
+  early_stopping_on_limit: false # Don't stop when limit reached - train full epochs
+
+  # Alignment-specific tracking
+  track_alignment_quality: true # Track image-caption alignment quality
+  log_misaligned_samples: true # Log samples with poor alignment
+  alignment_quality_threshold: 0.7 # Threshold for good alignment
+  save_alignment_statistics: true # Save alignment statistics
+
+  # FLOPS-token correlation tracking
+  correlate_flops_with_tokens: true # Track FLOPS per token processed
+  log_computational_efficiency: true # Log computational efficiency metrics
+  track_throughput_vs_quality: true # Monitor trade-offs between speed and quality
+
+# Hugging Face Hub integration for model checkpoint saving
+huggingface_hub:
+  enabled: true # Enable automatic uploads to HF Hub
+  repo_id: "estebancarlin/bitmar-no-memory" # Replace with your HF repo ID
+  private: true # Keep repo private by default
+  upload_after_epoch: true # Upload checkpoint after each epoch
+  upload_final_model: true # Upload final model at end
+  commit_message_template: "BitMar 100M tokens (no memory) - Epoch {epoch} - {tokens_processed:,} tokens processed"
+  create_model_card: true # Generate model card automatically
+  model_card_template: |
+    ---
+    language: en
+    license: mit
+    tags:
+    - bitmar
+    - multimodal
+    - babylm
+    - cross-modal
+    - no-memory
+    datasets:
+    - babylm_multimodal
+    metrics:
+    - bleu
+    - cross_modal_similarity
+    ---
+    
+    # BitMar 100M Token Model (No Episodic Memory)
+    
+    This model was trained on exactly 100 million tokens as part of the BabyLM challenge without episodic memory.
+    
+    ## Training Details
+    - Total tokens: 100,000,000
+    - Epochs completed: {epoch}
+    - Tokens processed: {tokens_processed:,}
+    - Cross-modal similarity: {best_similarity:.4f}
+    - Episodic memory: Disabled
+    
+    ## Model Architecture
+    - Text encoder: {text_encoder_layers} layers, {text_encoder_dim} hidden size
+    - Vision encoder: DiNOv2 features compressed to {vision_latent_size}
+    - Episodic memory: Disabled for comparison study
+    
+    ## Usage
+    ```python
+    from transformers import AutoModel, AutoTokenizer
+    
+    model = AutoModel.from_pretrained("{repo_id}")
+    tokenizer = AutoTokenizer.from_pretrained("{repo_id}")
+    ```
+
+# Attention Sinks configuration for endless fluent generation
+attention_sinks:
+  enabled: true # Enable attention sinks for improved long sequence generation
+  attention_sink_size: 4 # Number of initial tokens to use as attention sinks
+  attention_sink_window_size: 1020 # Size of sliding window for recent tokens
+  inject_to_text_encoder: true # Apply to text encoder
+  inject_to_text_decoder: true # Apply to text decoder
+  position_shift_enabled: true # Enable position shifting for proper handling
+
+  # Advanced attention sinks settings
+  cache_compression: true # Enable KV cache compression
+  adaptive_window_size: false # Experimental: adaptive window sizing
+  memory_efficient_attention: true # Use memory-efficient attention patterns
+
+  # Integration with existing BitMar features
+  preserve_episodic_memory: false # No episodic memory in this version
+  preserve_quantization: true # Ensure BitNet quantization is preserved
+  preserve_cross_modal_fusion: true # Ensure cross-modal fusion is preserved
