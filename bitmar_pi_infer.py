@@ -54,6 +54,13 @@ python3 bitmar_pi_infer.py \
   --ina219 \
   --metrics-dir run_power
 
+# 5) For another model repo or revision, use --repo and --revision flags.
+python3 bitmar_pi_infer.py \
+  --prompt "Describe the scene, then continue a short story about it." \
+  --repo estebancarlin/bitmar-no-memory \
+  --revision main \
+  --metrics-dir bitmar_no_memory_metrics
+
 
 ###########################################################################################
 USING IMAGE : 
@@ -674,15 +681,10 @@ def main():
             pass
 
     # Disk footprint details
-    # weight_files = find_state_dict_files(snapshot_dir)
-    # weights_bytes = sum([pathlib.Path(f).stat().st_size for f in weight_files if pathlib.Path(f).exists()])
     disk_footprint = {
         "snapshot_dir": snapshot_dir,
         "snapshot_bytes": snapshot_bytes,
         "snapshot_human": human_bytes(snapshot_bytes)#,
-        # "weight_files": weight_files,
-        # "weights_bytes": weights_bytes,
-        # "weights_human": human_bytes(weights_bytes),
     }
     with open(metrics_dir / "disk_footprint.json", "w") as fh:
         json.dump(disk_footprint, fh, indent=2)
@@ -724,7 +726,6 @@ def main():
         "ram_rss_mb_after": rss_after,
         "ram_peak_mb": peak_rss_mb,
         "disk_snapshot_human": disk_footprint["snapshot_human"],
-        # "disk_weights_human": disk_footprint["weights_human"],
         "power_measurement": "INA219" if (args.ina219 and INA_AVAILABLE) else "estimated",
         "energy_mJ_deployment": power.energy_mJ,
         "avg_power_mW_deployment": (power.energy_mJ / (gen_result["metrics"]["total_time_s"] if gen_result['metrics']['total_time_s']>0 else 1e-6)) if gen_result['metrics']['total_time_s']>0 else None,

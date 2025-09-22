@@ -207,6 +207,7 @@ tb_logs/
 # Hugging Face
 .cache/
 transformers_cache/
+hf_no_memory/
 
 # Custom BitMar excludes
 attention_analysis/
