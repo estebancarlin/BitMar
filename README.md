@@ -5,6 +5,8 @@
 
 BitMar is a **Vision-Language Episodic Memory Transformer** designed for the BabyLM Challenge. It combines BitNet-quantized text processing, DiNOv2 vision encoding, and episodic memory mechanisms to achieve efficient multimodal understanding with exactly 100M tokens.
 
+[ACL Paper link here](https://aclanthology.org/2025.babylm-main.11/)
+
 ## 🌟 Key Features
 
 - **Token-Constrained Training**: Exactly 100M tokens with perfect alignment
